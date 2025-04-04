@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            transition: background-color 0.5s ease;
+        }
+        .chat-container {
+            max-width: 500px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            overflow-y: auto;
+            max-height: 500px;
+            transition: box-shadow 0.3s ease;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            max-width: 80%;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .user-message {
+            background: #007bff;
+            color: white;
+            text-align: right;
+            margin-left: auto;
+        }
+        .bot-message {
+            background: #e0e0e0;
+            color: black;
+            text-align: left;
+        }
+        .prompt-form {
+            display: flex;
+            margin-top: 10px;
+        }
+        .prompt-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .send-btn, .clear-btn {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 5px;
+            transition: background 0.3s ease;
+        }
+        .send-btn:hover, .clear-btn:hover {
+            background: #0056b3;
+        }
+        #theme-toggle-btn {
+            margin-top: 10px;
+            padding: 10px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        #theme-toggle-btn:hover {
+            background: #555;
+        }
+        .dark-theme {
+            background-color: #1e1e1e;
+            color: white;
+        }
+        .dark-theme .chat-container {
+            background: #333;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+        }
+        .dark-theme .prompt-input {
+            background: #555;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chats-container"></div>
+        <form class="prompt-form">
+            <input type="text" class="prompt-input" placeholder="Type a message...">
+            <button type="submit" class="send-btn">Send</button>
+            <button type="button" class="clear-btn">Clear</button>
+        </form>
+        <button id="theme-toggle-btn">Toggle Theme</button>
+    </div>
+
+    <script>
+        const chatsContainer = document.querySelector(".chats-container");
+        const promptForm = document.querySelector(".prompt-form");
+        const promptInput = document.querySelector(".prompt-input");
+        const themeToggleBtn = document.getElementById("theme-toggle-btn");
+        const clearBtn = document.querySelector(".clear-btn");
+        const API_KEY = "AIzaSyB2f0luOh3WZ7OG8V-yH1QcB9GlW0kH0dE";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+        let userMessage = "";
+        const chatHistory = JSON.parse(localStorage.getItem("chatHistory")) || [];
+
+        const createMsgElement = (content, ...classes) => {
+            const div = document.createElement("div");
+            div.classList.add("message", ...classes);
+            div.innerHTML = content;
+            return div;
+        };
+
+        const generateResponse = async (botMsgDiv) => {
+            const textElement = botMsgDiv.querySelector(".message-text");
+            chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: userMessage }] }] }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error?.message || "API Error");
+
+                const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "No response received.";
+                textElement.textContent = responseText;
+                chatHistory.push({ role: "bot", parts: [{ text: responseText }] });
+                localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+            } catch (error) {
+                console.error(error);
+                textElement.textContent = "Sorry, something went wrong. Try again.";
+            }
+        };
+
+        promptForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            userMessage = promptInput.value.trim();
+            if (userMessage === "") return;
+            promptInput.value = "";
+            const userMsgDiv = createMsgElement(`<p class="message-text">${userMessage}</p>`, "user-message");
+            chatsContainer.appendChild(userMsgDiv);
+            setTimeout(() => {
+                const botMsgHTML = `<p class="message-text">Just a sec...</p>`;
+                const botMsgDiv = createMsgElement(botMsgHTML, "bot-message");
+                chatsContainer.appendChild(botMsgDiv);
+                generateResponse(botMsgDiv);
+            }, 600);
+        });
+
+        clearBtn.addEventListener("click", () => {
+            chatsContainer.innerHTML = "";
+            localStorage.removeItem("chatHistory");
+        });
+
+        themeToggleBtn.addEventListener("click", () => {
+            document.body.classList.toggle("dark-theme");
+            localStorage.setItem("theme", document.body.classList.contains("dark-theme") ? "dark" : "light");
+        });
+
+        if (localStorage.getItem("theme") === "dark") {
+            document.body.classList.add("dark-theme");
+        }
+    </script>
+</body>
+</html>
